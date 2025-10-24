@@ -3,47 +3,75 @@ import TableSearch from "@/components/TableSearch"
 import Image from "next/image"
 import Table from "@/components/Table"
 import Link from "next/link"
-import { role, productsData } from "@/lib/data"
 import FormModel from "@/components/FormModel"
+import { Product, Contact, Agent, Event } from "@/generated/prisma"
+import prisma from "@/lib/prisma"
+import { ITEM_PER_PAGE } from "@/lib/settings"
+import { Prisma } from "@/generated/prisma/client"
+import { auth } from "@clerk/nextjs/server"
 
-type Product = {
-  id: string;
-  name: string;
-  type: string[];
-  category: string[];
+type ProductList = Product & Contact & { events: Event[] } & Agent
+type SearchParams = { [key: string]: string | string[] | undefined }
+
+function getFirst(value: string | string[] | undefined) {
+  if (!value) return undefined
+  return Array.isArray(value) ? value[0] : value
 }
 
-const columns = [
-  {
-    header: "Name",
-    accessor:"name",
-  },
-  {
-    header: "Type",
-    accessor:"type",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Category",
-    accessor:"category",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Actions",
-    accessor:"action",
-  }
-]
+const ProductsListPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) => {
 
-const ProductsListPage = () => {
+  const { sessionClaims } = await auth()
+  const role = (sessionClaims?.metadata as { role?: string })?.role;
 
-  const renderRow = (item: Product) => (
+  const columns = [
+    {
+      header: "Name",
+      accessor: "name",
+    },
+    {
+      header: "Contact",
+      accessor: "contact",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Agent",
+      accessor: "agent",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Category",
+      accessor: "category",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Events",
+      accessor: "event",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Actions",
+      accessor: "action",
+    }
+  ]
+
+  const renderRow = (item: ProductList) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lightorange"
     >
-      <td className="font-semibold pl-2">{item.name}</td>
-      <td className="hidden md:table-cell">{item.type.join(", ")}</td>
-      <td className="hidden md:table-cell">{item.category.join(", ")}</td>
+      <td className="font-semibold pl-2">
+        <Link href={`/list/products/${item.id}`}>
+          {item.name}
+        </Link>
+      </td>
+      <td className="hidden md:table-cell">{item.contactId}</td>
+      <td className="hidden md:table-cell">{item.agentId}</td>
+      <td className="hidden md:table-cell">{item.category}</td>
+      <td className="hidden md:table-cell">{item.events.map(event => event.name).join(", ")}</td>
       <td>
         <div className="flex items-center gap-2">
           <Link href={`/list/products/${item.id}`}>
@@ -53,14 +81,45 @@ const ProductsListPage = () => {
           </Link>
           {role === "admin" && (
             <>
-            <FormModel table="products" type="update" data={item} id={parseInt(item.id)} />
-            <FormModel table="products" type="delete" id={parseInt(item.id)} />
+              <FormModel table="products" type="update" data={item} id={item.id} />
+              <FormModel table="products" type="delete" id={item.id} />
             </>
           )}
         </div>
       </td>
     </tr>
   )
+
+const paramsObj = await searchParams
+  const { page, ...queryParams } = paramsObj
+
+  const p = getFirst(page) ? parseInt(getFirst(page)!) : 1
+
+  //URL PARAMS CONDITION
+  const query: Prisma.ProductWhereInput = {}
+
+  if (queryParams) {
+    const searchValue = getFirst(queryParams.search)
+    if(searchValue) {
+      query.name = { contains: searchValue, mode: "insensitive" }
+    }
+  }
+
+  //FETCH DATA
+  const [data, count] = await prisma.$transaction([
+
+    prisma.product.findMany({
+      where: query,
+      include: {
+        //contact: true,
+        //agent: true,
+        events: true,
+      },
+      take: ITEM_PER_PAGE,
+      skip: ITEM_PER_PAGE * (p - 1),
+    }),
+    prisma.product.count()
+  ])
 
   return (
     <div className='bg-white p-4 rounded-md flex-1 m-4 mt-0'>
@@ -83,9 +142,9 @@ const ProductsListPage = () => {
         </div>
       </div>
       {/* LIST */}
-      <Table columns={columns} renderRow={renderRow} data={productsData}/>
+      <Table columns={columns} renderRow={renderRow} data={data} />
       {/* PAGINATION */}
-      <Pagination/>
+      <Pagination page={p} count={count} />
     </div>
   )
 }

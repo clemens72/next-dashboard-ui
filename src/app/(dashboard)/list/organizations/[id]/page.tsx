@@ -2,7 +2,7 @@ import Link from "next/link"
 import Image from "next/image"
 import FormModel from "@/components/FormModel"
 
-const SingleContactPage = () => {
+const SingleOrganizationPage = () => {
     return (
         <div className="flex-1 p-4 flex flex-col gap-4 xl:flex-row">
             {/* LEFT */}
@@ -63,13 +63,13 @@ const SingleContactPage = () => {
                 <div className="bg-white p-4 rounded-md">
                     <h1 className="text-xl font-semibold">Table Links</h1>
                     <div className="mt-4 flex gap-4 flex-wrap text-xs font-medium">
-                        <Link className="p-3 rounded-md bg-orange" href={`/list/organizations?contactId=${2}`}>
-                            Contact&apos;s Organizations
+                        <Link className="p-3 rounded-md bg-orange" href="/">
+                            Organization&apos;s Contacts
                         </Link>
                         <Link className="p-3 rounded-md bg-lightorange" href="/">
                             Contact&apos;s Tasks
                         </Link>
-                        <Link className="p-3 rounded-md bg-orange" href={`/list/events?contactId=${2}`}>
+                        <Link className="p-3 rounded-md bg-orange" href="/">
                             Contact&apos;s Events
                         </Link>
                         <Link className="p-3 rounded-md bg-lightorange" href="/">
@@ -85,4 +85,4 @@ const SingleContactPage = () => {
     )
 }
 
-export default SingleContactPage
+export default SingleOrganizationPage

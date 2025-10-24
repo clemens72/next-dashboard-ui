@@ -3,40 +3,47 @@ import TableSearch from "@/components/TableSearch"
 import Image from "next/image"
 import Table from "@/components/Table"
 import Link from "next/link"
-import { role, reportsData } from "@/lib/data"
 import FormModel from "@/components/FormModel"
+import { Report } from "@/generated/prisma"
+import prisma from "@/lib/prisma"
+import { ITEM_PER_PAGE } from "@/lib/settings"
+import { Prisma } from "@/generated/prisma/client"
+import { auth } from "@clerk/nextjs/server"
 
-type Report = {
-  id: string;
-  name: string;
-  type: string;
+type ReportList = Report
+type SearchParams = { [key: string]: string | string[] | undefined }
+
+function getFirst(value: string | string[] | undefined) {
+  if (!value) return undefined
+  return Array.isArray(value) ? value[0] : value
 }
 
-const columns = [
-  {
-    header: "Name",
-    accessor:"name",
-  },
-  {
-    header: "Type",
-    accessor:"type",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Actions",
-    accessor:"action",
-  }
-]
+const ReportingListPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) => {
 
-const ReportingListPage = () => {
+  const { sessionClaims } = await auth()
+  const role = (sessionClaims?.metadata as { role?: string })?.role;
 
-  const renderRow = (item: Report) => (
+  const columns = [
+    {
+      header: "Name",
+      accessor: "name",
+    },
+    {
+      header: "Actions",
+      accessor: "action",
+    }
+  ]
+
+  const renderRow = (item: ReportList) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lightorange"
     >
       <td className="font-semibold pl-2">{item.name}</td>
-      <td className="hidden md:table-cell">{item.type}</td>
       <td>
         <div className="flex items-center gap-2">
           <Link href={`/list/reporting/${item.id}`}>
@@ -46,14 +53,40 @@ const ReportingListPage = () => {
           </Link>
           {role === "admin" && (
             <>
-            <FormModel table="reporting" type="update" data={item} id={parseInt(item.id)} />
-            <FormModel table="reporting" type="delete" id={parseInt(item.id)} />
+              <FormModel table="reporting" type="update" data={item} id={item.id} />
+              <FormModel table="reporting" type="delete" id={item.id} />
             </>
           )}
         </div>
       </td>
     </tr>
   )
+
+const paramsObj = await searchParams
+  const { page, ...queryParams } = paramsObj
+
+  const p = getFirst(page) ? parseInt(getFirst(page)!) : 1
+
+  //URL PARAMS CONDITION
+  const query: Prisma.ReportWhereInput = {}
+
+  if (queryParams) {
+    const searchValue = getFirst(queryParams.search)
+    if(searchValue) {
+      query.name = { contains: searchValue, mode: "insensitive" }
+    }
+  }
+
+  //FETCH DATA
+  const [data, count] = await prisma.$transaction([
+
+    prisma.report.findMany({
+      where: query,
+      take: ITEM_PER_PAGE,
+      skip: ITEM_PER_PAGE * (p - 1),
+    }),
+    prisma.report.count()
+  ])
 
   return (
     <div className='bg-white p-4 rounded-md flex-1 m-4 mt-0'>
@@ -76,9 +109,9 @@ const ReportingListPage = () => {
         </div>
       </div>
       {/* LIST */}
-      <Table columns={columns} renderRow={renderRow} data={reportsData}/>
+      <Table columns={columns} renderRow={renderRow} data={data} />
       {/* PAGINATION */}
-      <Pagination/>
+      <Pagination page={p} count={count} />
     </div>
   )
 }

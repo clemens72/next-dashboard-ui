@@ -9,9 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@clerk/elements": "^0.23.74",
+    "@clerk/nextjs": "^6.34.0",
     "@hookform/resolvers": "^5.2.2",
+    "@prisma/client": "^6.18.0",
     "next": "^15.0.0",
-    "react": "^19.0.0",
+    "react": "^19.2.0",
     "react-calendar": "^6.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.65.0",
@@ -21,10 +24,13 @@
     "@types/node": "latest",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "dotenv": "^17.2.3",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
     "postcss": "^8.4.30",
+    "prisma": "^6.18.0",
     "tailwindcss": "^3.4.1",
-    "typescript": "latest"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

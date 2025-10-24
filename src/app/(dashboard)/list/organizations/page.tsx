@@ -3,47 +3,63 @@ import TableSearch from "@/components/TableSearch"
 import Image from "next/image"
 import Table from "@/components/Table"
 import Link from "next/link"
-import { role, organizationsData } from "@/lib/data"
 import FormModel from "@/components/FormModel"
+import { Organization, Event, Agent } from "@/generated/prisma"
+import prisma from "@/lib/prisma"
+import { ITEM_PER_PAGE } from "@/lib/settings"
+import { Prisma } from "@/generated/prisma/client"
+import { auth } from "@clerk/nextjs/server"
 
-type Organization = {
-  id: string;
-  name: string;
-  type: string[];
-  agent: string[];
+type OrganizationList = Organization & { events: Event[] } & Agent
+type SearchParams = { [key: string]: string | string[] | undefined }
+
+function getFirst(value: string | string[] | undefined) {
+  if (!value) return undefined
+  return Array.isArray(value) ? value[0] : value
 }
 
-const columns = [
-  {
-    header: "Name",
-    accessor:"name",
-  },
-  {
-    header: "Type",
-    accessor:"type",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Agent",
-    accessor:"agent",
-    className: "hidden md:table-cell",
-  },
-  {
-    header: "Actions",
-    accessor:"action",
-  }
-]
+const OrganizationsListPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) => {
 
-const OrganizationsListPage = () => {
+  const { sessionClaims } = await auth()
+  const role = (sessionClaims?.metadata as { role?: string })?.role;
+
+  const columns = [
+    {
+      header: "Name",
+      accessor: "name",
+    },
+    {
+      header: "Type",
+      accessor: "type",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Agent",
+      accessor: "agent",
+      className: "hidden md:table-cell",
+    },
+    {
+      header: "Actions",
+      accessor: "action",
+    }
+  ]
 
   const renderRow = (item: Organization) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lightorange"
     >
-      <td className="font-semibold pl-2">{item.name}</td>
-      <td className="hidden md:table-cell">{item.type.join(", ")}</td>
-      <td className="hidden md:table-cell">{item.agent.join(", ")}</td>
+      <td className="font-semibold pl-2">
+        <Link href={`/list/organizations/${item.id}`}>
+          {item.name}
+        </Link>
+      </td>
+      <td className="hidden md:table-cell">{item.type}</td>
+      <td className="hidden md:table-cell">{item.agentId}</td>
       <td>
         <div className="flex items-center gap-2">
           <Link href={`/list/organizations/${item.id}`}>
@@ -53,14 +69,45 @@ const OrganizationsListPage = () => {
           </Link>
           {role === "admin" && (
             <>
-            <FormModel table="organizations" type="update" data={item} id={parseInt(item.id)} />
-            <FormModel table="organizations" type="delete" id={parseInt(item.id)} />
+              <FormModel table="organizations" type="update" data={item} id={item.id} />
+              <FormModel table="organizations" type="delete" id={item.id} />
             </>
           )}
         </div>
       </td>
     </tr>
   )
+
+  const paramsObj = await searchParams
+    const { page, ...queryParams } = paramsObj
+  
+    const p = getFirst(page) ? parseInt(getFirst(page)!) : 1
+  
+    //URL PARAMS CONDITION
+    const query: Prisma.OrganizationWhereInput = {}
+  
+    if (queryParams) {
+      const searchValue = getFirst(queryParams.search)
+      if(searchValue) {
+        query.name = { contains: searchValue, mode: "insensitive" }
+      }
+    }
+
+  //FETCH DATA
+  const [data, count] = await prisma.$transaction([
+
+    prisma.organization.findMany({
+      where: query,
+      include: {
+        //contact: true,
+        //agent: true,
+        //events: true,
+      },
+      take: ITEM_PER_PAGE,
+      skip: ITEM_PER_PAGE * (p - 1),
+    }),
+    prisma.organization.count()
+  ])
 
   return (
     <div className='bg-white p-4 rounded-md flex-1 m-4 mt-0'>
@@ -83,9 +130,9 @@ const OrganizationsListPage = () => {
         </div>
       </div>
       {/* LIST */}
-      <Table columns={columns} renderRow={renderRow} data={organizationsData}/>
+      <Table columns={columns} renderRow={renderRow} data={data} />
       {/* PAGINATION */}
-      <Pagination/>
+      <Pagination page={p} count={count} />
     </div>
   )
 }
